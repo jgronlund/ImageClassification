@@ -1,7 +1,8 @@
 from torch.utils.data import Dataset
+import torch
+from models.image_encoder import Image2Recipe
 
-
-class Image2Recipe(Dataset):
+class Data_Loading(Dataset):
     """
     Class to combine the Images, Labels, Recipes together to be used in combination when inputted into Model
     """
@@ -42,15 +43,22 @@ class Runner(object):
         self.optimizer_name = kwargs['optimizer']
         self.device = kwargs['device']
 
+        self.model = Image2Recipe()
 
         self.optimizer = None
+        optimizer = torch.optim.AdamW([
+            {"params": self.model.clip_model.parameters(), "lr": 1e-6},
+            {"params": self.model.recipe_encoder.parameters(), "lr": 1e-5}, 
+            {"params": self.model.image_fc.parameters(), "lr": 1e-5},
+            {"params": self.model.recipe_fc.parameters(), "lr": 1e-5},
+        ])
 
 
         #TODO: Figure out best way to combine Images, Recipes, Instructions
         self.data_loader = {}
         self.data_loader['train'] = self.train_loader
         self.data_loader['eval'] = self.val_loader
-        
+        self.test_loader['test_loader'] = self.test_loader
         
         
         self.to(self.device)
@@ -64,7 +72,6 @@ class Runner(object):
 
             for phase in ['train', 'eval']:
 
-            
                 if phase == 'train':
                     self.model.train()
                 else:
@@ -82,14 +89,31 @@ class Runner(object):
                         #batch_data['instructions'].to(self.device),
                     )
 
-                    output = self.model(images, text_inputs, recipes, image_labels, instructions)
-                    ##Combine the Recipe Encoder Losses and Image Encoder Losses based on TFOOD
-                    loss = None
-
                     self.optimizer.zero_grad()
+
                     if phase == 'train':
+                        output = self.model(images, text_inputs, recipes, image_labels, instructions)
+                        ##Combine the Recipe Encoder Losses and Image Encoder Losses based on TFOOD
+                        loss = None
                         loss.backward()
                         self.optimizer.step()
+                    
+                    else: ##Eval mode
+                        with torch.no_grad():
+                            output = self.model(images, text_inputs, recipes, image_labels, instructions)
+                            loss = None ##TODO: Complete how we will calculate the loss with these outputted encodings
+                            
+                            ##Example solution, but I think the paper does it differently:
+                            # contrastive = contrastive_loss(image_features, text_features) + \
+                            #                 contrastive_loss(recipe_features, text_features) + \
+                            #                 contrastive_loss(recipe_features, image_features)
+                            # img_loss = self.criterion(image_logits, image_labels)
+                            # rcp_loss = self.criterion(recipe_logits, recipe_labels)
+        
+                            # # Combine losses
+                            # loss = alpha * contrastive + beta * (img_loss + rcp_loss)
+
+
 
                     total_loss += loss.item()
 
