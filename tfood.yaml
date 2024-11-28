@@ -1,0 +1,19 @@
+name: tfood_env
+channels:
+  - pytorch
+  - anaconda
+  - conda-forge
+  - defaults
+  - nvidia
+dependencies:
+  - pandas
+  - pip
+  - python=3.9
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.4
+  - pip:
+    - lmdb==1.2.1
+    - ipykernel
+    - pillow
