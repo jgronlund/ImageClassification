@@ -204,9 +204,9 @@ class TransformerDecoder(nn.Module):
 
         # Initialize embedding lookup
         # self.srcembeddingL = nn.Embedding(input_size, hidden_dim, device=self.device) 
-        self.tgtembeddingL = nn.Embedding(output_size, hidden_dim, device=self.device) 
+        # self.tgtembeddingL = nn.Embedding(output_size, hidden_dim, device=self.device) 
         # self.srcposembeddingL = nn.Embedding(max_length, hidden_dim, device=self.device)
-        self.tgtposembeddingL = nn.Embedding(max_length, hidden_dim, device=self.device)
+        # self.tgtposembeddingL = nn.Embedding(max_length, hidden_dim, device=self.device)
 
 
     def forward(self, src, tgt):
@@ -221,8 +221,6 @@ class TransformerDecoder(nn.Module):
 
         # shift tgt to right, add one <sos> to the beginning and shift the other tokens to right
         # tgt = self.add_start_token(tgt)
-
-
 
         # tgt = tgt.to(self.device)
         # tgt_emb = self.tgtembeddingL(tgt)
@@ -239,52 +237,6 @@ class TransformerDecoder(nn.Module):
 
         return outputs
 
-
-    # def add_start_token(self, batch_sequences, start_token=2):
-    #     """
-    #         add start_token to the beginning of batch_sequence and shift other tokens to the right
-    #         if batch_sequences starts with two consequtive <sos> tokens, return the original batch_sequence
-
-    #         example1:
-    #         batch_sequence = [[<sos>, 5,6,7]]
-    #         returns:
-    #             [[<sos>,<sos>, 5,6]]
-
-    #         example2:
-    #         batch_sequence = [[<sos>, <sos>, 5,6,7]]
-    #         returns:
-    #             [[<sos>, <sos>, 5,6,7]]
-    #     """
-    #     def has_consecutive_start_tokens(tensor, start_token):
-    #         """
-    #             return True if the tensor has two consecutive start tokens
-    #         """
-    #         consecutive_start_tokens = torch.tensor([start_token, start_token], dtype=tensor.dtype,
-    #                                                 device=tensor.device)
-
-    #         # Check if the first two tokens in each sequence are equal to consecutive start tokens
-    #         is_consecutive_start_tokens = torch.all(tensor[:, :2] == consecutive_start_tokens, dim=1)
-
-    #         # Return True if all sequences have two consecutive start tokens at the beginning
-    #         return torch.all(is_consecutive_start_tokens).item()
-
-    #     if has_consecutive_start_tokens(batch_sequences, start_token):
-    #         return batch_sequences
-
-    #     # Clone the input tensor to avoid modifying the original data
-    #     modified_sequences = batch_sequences.clone()
-
-    #     # Create a tensor with the start token and reshape it to match the shape of the input tensor
-    #     start_token_tensor = torch.tensor(start_token, dtype=modified_sequences.dtype, device=modified_sequences.device)
-    #     start_token_tensor = start_token_tensor.view(1, -1)
-
-    #     # Shift the words to the right
-    #     modified_sequences[:, 1:] = batch_sequences[:, :-1]
-
-    #     # Add the start token to the first word in each sequence
-    #     modified_sequences[:, 0] = start_token_tensor
-
-    #     return modified_sequences
 
 
 def seed_torch(seed=0):
