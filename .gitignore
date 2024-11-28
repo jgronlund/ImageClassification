@@ -1,0 +1,8 @@
+#tmp files
+__pycache__
+
+# Unneeded files
+*.zip
+*.pdf
+archive
+TFood
