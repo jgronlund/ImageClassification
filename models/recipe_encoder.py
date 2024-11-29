@@ -24,9 +24,9 @@ class RecipeEncoder(nn.Module):
 
     def forward(self, src):
         # process txt based on txt name (title, ingredients, recipe)
-        title_array = src[0] # ["Title"]
-        ingredients_array = src[1] # ["Ingredients"]
-        instructions_array = src[2] # ["Instructions"]
+        title_array = src[0].to(self.device) # ["Title"]
+        ingredients_array = src[1].to(self.device) # ["Ingredients"]
+        instructions_array = src[2].to(self.device) # ["Instructions"]
 
         #### Encoders ####
         ## Title processing
@@ -81,17 +81,17 @@ class RecipeEncoder(nn.Module):
         ttl_3 = title_decoder.forward(ttl_2, cat)
 
         # Take average of each decoder output
-        avg_ingr = torch.mean(ing_3, dim=1)
-        avg_instr = torch.mean(ins_3, dim=1)
-        avg_title = torch.mean(ttl_3, dim=1)
+        avg_ingr = torch.mean(ing_3, dim=1).to(self.device)
+        avg_instr = torch.mean(ins_3, dim=1).to(self.device)
+        avg_title = torch.mean(ttl_3, dim=1).to(self.device)
 
         # Concat the decoder outputs
-        t_R = torch.cat((ttl_3, ing_3, ins_3), dim=1)
+        t_R = torch.cat((ttl_3, ing_3, ins_3), dim=1).to(self.device)
         # t_R = self.ll_t(cat)
 
 
         # Concat the averages and project out
-        cat_avg = torch.cat((avg_title, avg_ingr, avg_instr), dim=1)
+        cat_avg = torch.cat((avg_title, avg_ingr, avg_instr), dim=1).to(self.device)
         e_R = self.ll_e(cat_avg)
 
 
@@ -129,7 +129,7 @@ class TransformerEncoder(nn.Module):
 
         self.encoder = nn.TransformerEncoder(encoder_layer_T,
                                     num_layers=num_enc_layers,
-                                    )
+                                    ).to(self.device)
         
 
         # Initialize embedding lookup
@@ -151,7 +151,7 @@ class TransformerEncoder(nn.Module):
         src_emb = self.srcembeddingL(src)
         pos_range = torch.arange(0,self.max_length, device=self.device).repeat(src.shape[0],1)
         pos_embed = self.srcposembeddingL(pos_range)
-        src_pos_emb = src_emb+ pos_embed
+        src_pos_emb = (src_emb+ pos_embed).to(self.device)
 
   
         # invoke transformer to generate output
@@ -195,7 +195,7 @@ class TransformerDecoder(nn.Module):
 
         self.decoder = nn.TransformerDecoder(decoder_layer_HTD,
                                     num_layers=num_dec_layers,
-                                    )
+                                    ).to(self.device)
 
         
 
