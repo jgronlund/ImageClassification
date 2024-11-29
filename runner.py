@@ -51,7 +51,7 @@ class Runner(object):
         self.tokenized_ingredients = kwargs['ingredient_tokens']
         self.tokenized_instructions = kwargs['instruction_tokens']
         self.tokenized_title = kwargs['title_tokens']
-        self.image_tensor = kwargs['image_tensor']
+        self.image_tensor = kwargs['image_tensors']
         self.image_labels = kwargs['image_labels']
         self.clip_model = kwargs['clip_model']
         self.vocab_size = kwargs['vocab_size']
@@ -59,18 +59,19 @@ class Runner(object):
         num_classes = len(self.image_labels)
 
         
-        self.image_encoder = Image_Encoder(self.clip_model, num_classes)
-        self.recipe_encoder = RecipeEncoder(self.device, self.vocab_size, self.max_len)
-        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder)
+        self.image_encoder = Image_Encoder(self.device, self.clip_model, num_classes).to(self.device)
+        self.recipe_encoder = RecipeEncoder(self.device, self.vocab_size, self.max_len).to(self.device)
+        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder).to(self.device)
 
 
         ##DO we want to tune each of these learning rates for each model?
-        self.optimizer = torch.optim.AdamW([
-            {"params": self.model.image_encoder.parent_model.parameters(), "lr": 1e-6},
-            {"params": self.model.recipe_encoder.parameters(), "lr": 1e-5}, 
-            {"params": self.model.image_encoder.fc1.parameters(), "lr": 1e-5},
-            {"params": self.model.recipe_encoder.ll_e.parameters(), "lr": 1e-5},
-        ])
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        # self.optimizer = torch.optim.AdamW([
+        #     {"params": self.model.image_encoder.parent_model.parameters(), "lr": 1e-6},
+        #     {"params": self.model.recipe_encoder.parameters(), "lr": 1e-5}, 
+        #     {"params": self.model.image_encoder.fc1.parameters(), "lr": 1e-5},
+        #     {"params": self.model.recipe_encoder.ll_e.parameters(), "lr": 1e-5},
+        # ])
 
 
         #Combine Images, Recipes, Instructions in training and eval datasets
@@ -95,7 +96,6 @@ class Runner(object):
         self.eval_acc_list = []
         self.eval_acc_list = []
 
-        self.to(self.device)
 
     def train(self):
         """
@@ -114,14 +114,13 @@ class Runner(object):
                 
                 for i, batch_data in enumerate(self.dataloader[phase]):
                     #Looping through batches of training data then eval data each epoch
-
                     #TODO: Add how the recipe, instructions, and titles will be tokenized
                     ingredients, instructions, titles, images, image_labels = (
                         batch_data['ingredients'].to(self.device),
                         batch_data['instructions'].to(self.device),
                         batch_data['titles'].to(self.device),
                         batch_data['images'].to(self.device),
-                        batch_data['tokenized_labels'].to(self.device)
+                        batch_data['tokenized_labels']
                     )
 
                     recipe_enc_src = [titles, ingredients, instructions]
@@ -150,10 +149,12 @@ class Runner(object):
                             # loss = alpha * contrastive + beta * (img_loss + rcp_loss)
 
 
+                    print(output)
+                    break
+                    # total_loss += loss.item()
 
-                    total_loss += loss.item()
-
-                print(f"{phase}: Epoch {epoch+1}, Loss: {total_loss / len(self.data_loader[phase])}")
+                print(f"{phase}: Epoch {epoch+1}, Loss: {total_loss / len(self.dataloader[phase])}")
+                break
 
 
     ##Waiting on training code to finish
