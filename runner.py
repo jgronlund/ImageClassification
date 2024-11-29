@@ -1,7 +1,6 @@
 from torch.utils.data import Dataset
 import torch
-from models.image_encoder import Image2Recipe
-from models.recipe_encoder import Recipe_Encoder
+from models.image_2_recipe import Image2Recipe
 
 class Data_Loading(Dataset):
     """
@@ -97,7 +96,7 @@ class Runner(object):
                     #TODO: Add how the recipe, instructions, and titles will be tokenized
                     recipes, instructions, titles, images, image_labels = (
                         batch_data['images'].to(self.device),
-                        #{k: v.to(self.device) for k, v in batch_data['text_inputs'].items()},
+                        #{k: v.to(self.device) for k, v in batch_data['titles'].items()},
                         #batch_data['recipes'].to(self.device),
                         batch_data['image_labels'].to(self.device),
                         #batch_data['instructions'].to(self.device),
@@ -107,7 +106,7 @@ class Runner(object):
                     self.optimizer.zero_grad()
 
                     if phase == 'train':
-                        output = self.model(images, text_inputs, recipes, image_labels, instructions)
+                        output = self.model(images, titles, recipes, image_labels, instructions)
                         ##Combine the Recipe Encoder Losses and Image Encoder Losses based on TFOOD
                         loss = None
                         loss.backward()
@@ -115,7 +114,7 @@ class Runner(object):
                     
                     else: ##Eval mode
                         with torch.no_grad():
-                            output = self.model(images, text_inputs, recipes, image_labels, instructions)
+                            output = self.model(images, titles, recipes, image_labels, instructions)
                             loss = None ##TODO: Complete how we will calculate the loss with these outputted encodings
                             
                             ##Example solution, but I think the paper does it differently:
