@@ -1,16 +1,17 @@
 from torch.utils.data import Dataset
 import torch
-from models.image_encoder import Image2Recipe
-from models.recipe_encoder import Recipe_Encoder
+from models.image_2_recipe import Image2Recipe
+from models.image_encoder import Image_Encoder
+from models.recipe_encoder import RecipeEncoder
 
 class Data_Loading(Dataset):
     """
     Class to combine the Images, Labels, Recipes together to be used in combination when inputted into Model
     """
-    def __init__(self, tokenized_recipes, tokenized_instructions, tokenized_titles, image_tensors, image_labels):
-        self.recipes = tokenized_recipes
-        self.instructions = tokenized_instructions
-        self.titles = tokenized_titles
+    def __init__(self, tokenized_ingredients, tokenized_instructions, tokenized_titles, image_tensors, image_labels):
+        self.ingredients = torch.tensor(tokenized_ingredients, dtype=torch.long)
+        self.instructions = torch.tensor(tokenized_instructions, dtype=torch.long)
+        self.titles = torch.tensor(tokenized_titles, dtype=torch.long)
         self.images = image_tensors
         self.labels = image_labels
 
@@ -19,7 +20,7 @@ class Data_Loading(Dataset):
 
     def __getitem__(self, idx):
         return {
-            "recipes": self.recipes[idx],
+            "ingredients": self.ingredients[idx],
             "instructions": self.instructions[idx],
             "titles": self.titles[idx],
             "images": self.images[idx],
@@ -38,19 +39,27 @@ class Runner(object):
         Initialize ViT
         """
         self.epochs = kwargs['epochs']
-        self.train_loader = kwargs['train_loader']
-        self.test_loader = kwargs['test_loader']
-        self.val_loader = kwargs['val_loader']
+        # self.train_loader = kwargs['train_loader']
+        # self.test_loader = kwargs['test_loader']
+        # self.val_loader = kwargs['val_loader']
         self.optimizer_name = kwargs['optimizer']
         self.device = kwargs['device']
 
-        self.tokenized_recipe = kwargs['recipe_tokens']
-        self.tokenized_instructions = kwargs['instr_tokens']
+        self.tokenized_ingredients = kwargs['ingredient_tokens']
+        self.tokenized_instructions = kwargs['instruction_tokens']
         self.tokenized_title = kwargs['title_tokens']
         self.image_tensor = kwargs['image_tensor']
         self.image_labels = kwargs['image_labels']
+        self.clip_model = kwargs['clip_model']
+        self.vocab_size = kwargs['vocab_size']
+        self.max_len = kwargs['max_len']
+        num_classes = len(self.image_labels)
 
-        self.model = Image2Recipe()
+        
+        self.image_encoder = Image_Encoder(self.clip_model, num_classes)
+        self.recipe_encoder = RecipeEncoder(self.vocab_size, self.max_len)
+        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder)
+
 
         self.optimizer = None
         optimizer = torch.optim.AdamW([
@@ -63,9 +72,9 @@ class Runner(object):
 
         #TODO: Figure out best way to combine Images, Recipes, Instructions
         self.data_loader = Data_Loading(
-            self.tokenized_recipe['input_ids'], 
-            self.tokenized_instructions['input_ids'], 
-            self.tokenized_title['input_ids'], 
+            self.tokenized_ingredients, 
+            self.tokenized_instructions, 
+            self.tokenized_title, 
             self.image_tensor, 
             self.image_labels
         )
