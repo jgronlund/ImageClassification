@@ -8,9 +8,11 @@ import torch.functional as F
 # processor = CLIPProcessor.from_pretrained(model_name)
 
 
-class Image2Recipe(nn.Module):
+
+
+class Image_Encoder(nn.Module):
     def __init__(self, clip_model, num_classes):
-        super(Image2Recipe, self).__init__()
+        super(Image_Encoder, self).__init__()
 
         self.parent_model = clip_model
         self.image_embedding_dim = clip_model.config.hidden_size
