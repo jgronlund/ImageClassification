@@ -34,7 +34,11 @@ class RecipeEncoder(nn.Module):
         title_encoder = TransformerEncoder(self.vocab_size, self.device, 
                                            max_length=self.max_len,
                                            output_size=self.output_size)
-        ttl_2 = title_encoder.forward(title_array)
+        if len(title_array.shape)==3:
+            ttl_1 = torch.squeeze(title_array)
+        else:
+            ttl_1 = title_array
+        ttl_2 = title_encoder.forward(ttl_1)
 
         ## Ingredients processing
         # Run each line thru first encoder and avg the output
@@ -57,10 +61,10 @@ class RecipeEncoder(nn.Module):
 
         ## Instructions processing
         # Run thru first encoder and avg the output
-        ins_1_all = torch.zeros_like(ingredients_array, dtype=torch.float)
+        ins_1_all = torch.zeros_like(instructions_array, dtype=torch.float)
         # An encoder for each line
-        for i in range(ingredients_array.shape[1]):
-            ins = ingredients_array[:,i,:]
+        for i in range(instructions_array.shape[1]):
+            ins = instructions_array[:,i,:]
             instr_T_encoder = TransformerEncoder(self.vocab_size, self.device,
                                                 max_length=self.max_len,
                                                 output_size=self.output_size)
