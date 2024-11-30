@@ -31,9 +31,8 @@ import random
 #     - Multimodal transformer decoder (MTD)
 
 class MMR_losses(nn.Module):
-    def __init__(self, margin=0.3, triplet_weight=0.1, match_weight=1.0, sem_weight=0.1):
+    def __init__(self, triplet_weight=0.0, match_weight=1.0, sem_weight=0.0):
         super().__init__()
-        self.margin = margin  # Distance btwn img and sample < img to rand by margin! CITATION: https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=9857479
         self.triplet_weight = triplet_weight
         self.match_weight = match_weight
         self.sem_weight = sem_weight
@@ -147,10 +146,20 @@ class MMR(nn.Module):
         # Project the two embeddings into space for ITM loss
         recipe_projection = self.recipe_proj(fused_tokens.transpose(0, 1)[:, 0, :]) 
         image_projection = self.image_proj(enhanced_image_tokens.transpose(0, 1)[:, 0, :]) 
+        concat_projections = torch.cat(recipe_projection, image_projection)
         
         # After fusing the two modalities an ITM loss is applied --> not the triplet loss?
+        logits = self.match_score(torch.sigmoid(concat_projections))
+
+        return logits
         
-    
+    def compute_loss(self, tgt_labels, logits, loss_type='ITM', triplet_weight=0.0, match_weight=1.0, sem_weight=0.0):
+        """
+        Calculate the losses--> input target and the logits from the forward pass
+        """
+        # if loss_type == 'ITM':
+        itm_loss = MMR_losses.itm_loss(torch.sigmoid(logits), tgt_labels.float())
+        return itm_loss
 
     def seed_torch(seed=0):
         random.seed(seed)
