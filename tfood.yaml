@@ -17,3 +17,4 @@ dependencies:
     - lmdb==1.2.1
     - ipykernel
     - pillow
+    - transformers==4.46.2
