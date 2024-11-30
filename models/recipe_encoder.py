@@ -5,10 +5,22 @@ import numpy as np
 import torch
 from torch import nn
 import random
-# from custom_decoder import CustomDecoderLayer
 
 class RecipeEncoder(nn.Module):
     def __init__(self, device, vocab_size, max_len, output_size=1024, hidden_dim=512 ):
+        """
+        Initialize the recipe encoder
+            Args:
+                device (str): Name of device to use
+                vocab_size (int): Total words across all text inputs
+                max_len (int): Longest line in any text input
+                output_size (int): Size of output
+                hidden_dim (int): Size of hidden layers
+            
+            Returns: 
+                t_R (tensor): output tokens
+                e_R (tensor): recipe embedding
+        """
         super().__init__()
 
         self.vocab_size = vocab_size
@@ -22,11 +34,20 @@ class RecipeEncoder(nn.Module):
         self.ll_e = nn.Linear(self.hidden_dim*3, output_size, device=self.device)
 
 
-    def forward(self, src):
+    def forward(self, input):
+        """
+        Forward pass of the recipe encoder
+            Args:
+                input (list(tensors)): List of tensors containing title, ingredients, instructions
+            
+            Returns: 
+                t_R (tensor)
+                e_R (tensor)
+        """
         # process txt based on txt name (title, ingredients, recipe)
-        title_array = src[0].to(self.device) # ["Title"]
-        ingredients_array = src[1].to(self.device) # ["Ingredients"]
-        instructions_array = src[2].to(self.device) # ["Instructions"]
+        title_array = input[0].to(self.device) # ["Title"]
+        ingredients_array = input[1].to(self.device) # ["Ingredients"]
+        instructions_array = input[2].to(self.device) # ["Instructions"]
 
         #### Encoders ####
         ## Title processing
@@ -153,20 +174,18 @@ class TransformerEncoder(nn.Module):
         self.srcposembeddingL = nn.Embedding(max_length, hidden_dim, device=self.device)
 
 
-    def forward(self, src):
+    def forward(self, input):
         """
          This function computes the full Transformer forward pass used during training.
-         Put together all of the layers you've developed in the correct order.
 
-         :param src: a PyTorch tensor of shape (N,T) these are tokenized input sentences
+         :param input: a PyTorch tensor of shape (N,T) these are tokenized input sentences
          :returns: the model outputs. Should be scores of shape (N,T,output_size).
          """
         
-        # embed src and tgt for processing by transformer
-        src = src.to(self.device, dtype=torch.long)
-
-        src_emb = self.srcembeddingL(src)
-        pos_range = torch.arange(0,self.max_length, device=self.device).repeat(src.shape[0],1)
+        # embed input and tgt for processing by transformer
+        input = input.to(self.device)
+        src_emb = self.srcembeddingL(input)
+        pos_range = torch.arange(0,self.max_length, device=self.device).repeat(input.shape[0],1)
         pos_embed = self.srcposembeddingL(pos_range)
         src_pos_emb = (src_emb+ pos_embed).to(self.device)
 
@@ -223,12 +242,11 @@ class TransformerDecoder(nn.Module):
         # self.tgtposembeddingL = nn.Embedding(max_length, hidden_dim, device=self.device)
 
 
-    def forward(self, src, tgt):
+    def forward(self, input, tgt):
         """
          This function computes the full Transformer forward pass used during training.
-         Put together all of the layers you've developed in the correct order.
 
-         :param src: a PyTorch tensor of shape (N,T) these are tokenized input sentences
+         :param input: a PyTorch tensor of shape (N,T) these are tokenized input sentences
                 tgt: a PyTorch tensor of shape (N,T) these are tokenized translations
          :returns: the model outputs. Should be scores of shape (N,T,output_size).
          """
@@ -244,7 +262,7 @@ class TransformerDecoder(nn.Module):
 
   
         # invoke transformer to generate output
-        outputs = self.decoder(src,tgt)
+        outputs = self.decoder(input,tgt)
 
         # pass through final layer to generate outputs
         # outputs = self.ll_o(outputs)
