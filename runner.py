@@ -61,7 +61,8 @@ class Runner(object):
         
         self.image_encoder = Image_Encoder(self.device, self.clip_model, num_classes).to(self.device)
         self.recipe_encoder = RecipeEncoder(self.device, self.vocab_size, self.max_len).to(self.device)
-        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder).to(self.device)
+        self.mmr = MMR(input_size=self.image_encoder.hidden_dim, device=self.device)
+        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder, self.mmr).to(self.device)
 
 
         ##DO we want to tune each of these learning rates for each model?
@@ -129,7 +130,7 @@ class Runner(object):
                     if phase == 'train':
                         output = self.model(images, image_labels, recipe_enc_src)
                         ##Combine the Recipe Encoder Losses and Image Encoder Losses based on TFOOD
-                        loss = None
+                        loss = None ## Do the compute losss from MMR.losses
                         loss.backward()
                         self.optimizer.step()
                     
