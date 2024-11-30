@@ -37,30 +37,42 @@ class RecipeEncoder(nn.Module):
         ttl_2 = title_encoder.forward(title_array)
 
         ## Ingredients processing
-        # Run thru first encoder and avg the output
-        ingr_T_encoder = TransformerEncoder(self.vocab_size, self.device, 
-                                            max_length=self.max_len,
-                                            output_size=self.output_size)
-        ing_1 = ingr_T_encoder.forward(ingredients_array).mean(dim=2)
+        # Run each line thru first encoder and avg the output
+        ing_1_all = torch.zeros_like(ingredients_array, dtype=torch.float)
+        # An encoder for each line
+        for i in range(ingredients_array.shape[1]):
+            ing = ingredients_array[:,i,:]
+            ingr_T_encoder = TransformerEncoder(self.vocab_size, self.device, 
+                                                max_length=self.max_len,
+                                                output_size=self.output_size)
+            ing_1_all[:,i,:] = ingr_T_encoder.forward(ing).mean(dim=2)
+
+        ing_1 = ing_1_all.mean(dim=1).long()
 
         # Run thru second encoder
         ingr_HT_encoder = TransformerEncoder(self.vocab_size, self.device, 
                                              max_length=self.max_len,
                                              output_size=self.output_size)
-        ing_2 = ingr_HT_encoder.forward(ing_1.long())
+        ing_2 = ingr_HT_encoder.forward(ing_1)
 
         ## Instructions processing
         # Run thru first encoder and avg the output
-        instr_T_encoder = TransformerEncoder(self.vocab_size, self.device,
-                                             max_length=self.max_len,
-                                             output_size=self.output_size)
-        ins_1 = instr_T_encoder.forward(instructions_array).mean(dim=2)
+        ins_1_all = torch.zeros_like(ingredients_array, dtype=torch.float)
+        # An encoder for each line
+        for i in range(ingredients_array.shape[1]):
+            ins = ingredients_array[:,i,:]
+            instr_T_encoder = TransformerEncoder(self.vocab_size, self.device,
+                                                max_length=self.max_len,
+                                                output_size=self.output_size)
+            ins_1_all[:,i,:] = instr_T_encoder.forward(ins).mean(dim=2)
+
+        ins_1 = ins_1_all.mean(dim=1).long()
 
         # Run thru second encoder
         instr_HT_encoder = TransformerEncoder(self.vocab_size, self.device,
                                               max_length=self.max_len,
                                               output_size=self.output_size)
-        ins_2 = instr_HT_encoder.forward(ins_1.long())
+        ins_2 = instr_HT_encoder.forward(ins_1)
 
 
         #### Decoders ####
