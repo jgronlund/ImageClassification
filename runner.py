@@ -130,7 +130,7 @@ class Runner(object):
                     if phase == 'train':
                         output = self.model(images, image_labels, recipe_enc_src)
                         ##Combine the Recipe Encoder Losses and Image Encoder Losses based on TFOOD
-                        loss = None
+                        loss = None ## Do the compute losss from MMR.losses
                         loss.backward()
                         self.optimizer.step()
                     
