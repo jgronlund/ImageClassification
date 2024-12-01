@@ -3,12 +3,12 @@ import torch.nn as nn
 import torch.functional as F
 
 class Image2Recipe(nn.Module):
-    def __init__(self, image_encoder, recipe_encoder, mmr, projection_dim=512): ##Im not sure projection_dim we should put
-        super(Image2Recipe, self).__init__()
+    def __init__(self, image_encoder, recipe_encoder, projection_dim=512): ##Im not sure projection_dim we should put
+        super().__init__()
         
         self.image_encoder = image_encoder
         self.recipe_encoder = recipe_encoder
-        self.mmr = mmr
+        # self.mmr = mmr
         
         # Projection layers to map both modalities to a shared embedding space
         self.image_projection = nn.Linear(image_encoder.image_embedding_dim, projection_dim)
@@ -29,11 +29,11 @@ class Image2Recipe(nn.Module):
         image_embeddings_proj = self.normalize(image_embeddings_proj, p=2, dim=-1)
         recipe_embeddings_proj = self.normalize(recipe_embeddings_proj, p=2, dim=-1)
 
-        output_logits = self.mmr(recipe_embeddings_proj, image_embeddings_proj)
+        # output_logits = self.mmr(recipe_embeddings_proj, image_embeddings_proj)
         
         # Return logits and normalized embeddings for similarity
         return {
-            "output_logits": output_logits,
+            # "output_logits": output_logits,
             "image_logits": image_logits,
             "image_embeddings": image_embeddings_proj,
             "recipe_embeddings": recipe_embeddings_proj

@@ -73,10 +73,10 @@ class TDB(nn.Module):
         self.heads = heads
 
         # Self attention --> ouput is attn_output, attn_output_weights, so we only care about the first
-        self.self_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads)
+        self.self_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=heads)
         self.norm_sa = nn.LayerNorm(hidden_dim)
         # Cross attention
-        self.cross_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=num_heads)
+        self.cross_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=heads)
         self.norm_ca = nn.LayerNorm(hidden_dim)
 
         # Feed forward layers --> expand and compress to keep shape --> Sequential to only call one thing... ReLU for nonlinearity but they use sigmoid

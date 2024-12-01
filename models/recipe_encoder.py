@@ -163,7 +163,8 @@ class TransformerEncoder(nn.Module):
          """
         
         # embed src and tgt for processing by transformer
-        src = src.to(self.device)
+        src = src.to(self.device, dtype=torch.long)
+
         src_emb = self.srcembeddingL(src)
         pos_range = torch.arange(0,self.max_length, device=self.device).repeat(src.shape[0],1)
         pos_embed = self.srcposembeddingL(pos_range)

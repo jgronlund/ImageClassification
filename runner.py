@@ -3,6 +3,7 @@ import torch
 from models.image_2_recipe import Image2Recipe
 from models.image_encoder import Image_Encoder
 from models.recipe_encoder import RecipeEncoder
+from models.MMR import MMR
 import matplotlib.pyplot as plt
 
 class Data_Loading(Dataset):
@@ -10,9 +11,9 @@ class Data_Loading(Dataset):
     Class to combine the Images, Labels, Recipes together to be used in combination when inputted into Model
     """
     def __init__(self, tokenized_ingredients, tokenized_instructions, tokenized_titles, image_tensors, tokenized_labels):
-        self.ingredients = torch.tensor(tokenized_ingredients, dtype=torch.long)
-        self.instructions = torch.tensor(tokenized_instructions, dtype=torch.long)
-        self.titles = torch.tensor(tokenized_titles, dtype=torch.long)
+        self.ingredients = torch.tensor(tokenized_ingredients, dtype=torch.int16)
+        self.instructions = torch.tensor(tokenized_instructions, dtype=torch.int16)
+        self.titles = torch.tensor(tokenized_titles, dtype=torch.int16)
         self.images = image_tensors
         self.tokenized_labels = tokenized_labels
 
@@ -26,8 +27,8 @@ class Data_Loading(Dataset):
             "titles": self.titles[idx],
             "images": self.images[idx],
             "tokenized_labels": {
-                "input_ids": self.tokenized_labels['input_ids'][idx],
-                "attention_mask": self.tokenized_labels['attention_mask'][idx]
+                "input_ids": self.tokenized_labels['input_ids'][idx].to(dtype=torch.long),
+                "attention_mask": self.tokenized_labels['attention_mask'][idx].to(dtype=torch.uint8)
             }
         }
 
@@ -61,8 +62,8 @@ class Runner(object):
         
         self.image_encoder = Image_Encoder(self.device, self.clip_model, num_classes).to(self.device)
         self.recipe_encoder = RecipeEncoder(self.device, self.vocab_size, self.max_len).to(self.device)
-        self.mmr = MMR(input_size=self.image_encoder.hidden_dim, device=self.device)
-        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder, self.mmr).to(self.device)
+        # self.mmr = MMR(input_size=self.image_encoder.clip_model.config.projection_dim, device=self.device)
+        self.model = Image2Recipe(self.image_encoder, self.recipe_encoder).to(self.device)
 
 
         ##DO we want to tune each of these learning rates for each model?
@@ -96,6 +97,7 @@ class Runner(object):
         self.eval_loss_list = []
         self.eval_acc_list = []
         self.eval_acc_list = []
+        print("finished initializing")
 
 
     def train(self):
@@ -112,7 +114,7 @@ class Runner(object):
                     self.model.train()
                 else:
                     self.model.eval()
-                
+                print("updated")
                 for i, batch_data in enumerate(self.dataloader[phase]):
                     #Looping through batches of training data then eval data each epoch
                     #TODO: Add how the recipe, instructions, and titles will be tokenized
