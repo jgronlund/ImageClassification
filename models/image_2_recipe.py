@@ -3,12 +3,12 @@ import torch.nn as nn
 import torch.functional as F
 
 class Image2Recipe(nn.Module):
-    def __init__(self, image_encoder, recipe_encoder, projection_dim=512): ##Im not sure projection_dim we should put
+    def __init__(self, image_encoder, recipe_encoder, mmr, projection_dim=512): ##Im not sure projection_dim we should put
         super().__init__()
         
         self.image_encoder = image_encoder
         self.recipe_encoder = recipe_encoder
-        self.mmr = MMR
+        self.mmr = mmr
         
         # Projection layers to map both modalities to a shared embedding space
         self.image_projection = nn.Linear(image_encoder.image_embedding_dim, projection_dim)
