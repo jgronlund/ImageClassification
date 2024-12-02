@@ -168,6 +168,7 @@ class MMR(nn.Module):
         self.hidden_dim = hidden_dim  # MUST be the size of inputs
         self.ITEM_lyrs = ITEM_lyrs
         self.MTD_lyrs = MTD_lyrs
+        #self.num_classes = num_classes
         self.projection_dim = projection_dim
 
         # Start the class. What info do I have? 
@@ -193,7 +194,7 @@ class MMR(nn.Module):
         self.recipe_proj = nn.Linear(self.hidden_dim, self.projection_dim)
         
         # the second part!! matching section --> IT FOLLOWS the other section, so it should be sequential!
-        self.match_score = nn.Sequential(nn.Linear(projection_dim, 1), nn.Sigmoid())
+        # self.match_score = nn.Sequential(nn.Linear(self.projection_dim, self.num_classes), nn.Sigmoid())
         
     def forward(self, recipe_tokens, image_tokens):
 
@@ -227,11 +228,13 @@ class MMR(nn.Module):
         print(f'recipe: {recipe_projection.shape}')
         print(f'image: {image_projection.shape}')
 
-        concat_projections = torch.cat((recipe_projection, image_projection), dim=1)
-        print(f'post concat: {concat_projections}')
+        # concat_projections = torch.cat((recipe_projection, image_projection), dim=1)
+	# concat_projections = torch.sum(
+        similarity_score = torch.sum(recipe_projection * image_projection, dim=-1)  # Dot product for similarity
+        # print(f'post concat: {concat_projections}')
         
         # After fusing the two modalities an ITM loss is applied --> not the triplet loss?
-        logits = self.match_score(torch.sigmoid(concat_projections))
+        logits = torch.sigmoid(similarity_score).mean(-1)  # self.match_score(torch.sigmoid(concat_projections))
 
         return logits
         
