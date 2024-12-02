@@ -68,7 +68,7 @@ class Runner(object):
         
         self.image_encoder = Image_Encoder(self.device, self.clip_model, num_classes).to(self.device)
         self.recipe_encoder = RecipeEncoder(self.device, self.vocab_size, self.max_len).to(self.device)
-        self.mmr = MMR(input_size=self.image_encoder.clip_model.config.projection_dim).to(self.device)
+        self.mmr = MMR(hidden_dim=self.image_encoder.clip_model.config.projection_dim).to(self.device)
         # MMR varaibles: num_heads=num_heads, ITEM_lyrs=ITEM_lyrs, MTD_lyrs=MTD_lyrs, projection_dim=projection_dim
         self.model = Image2Recipe(self.image_encoder, self.recipe_encoder, self.mmr).to(self.device)
 
