@@ -43,6 +43,9 @@ kwargs = {
     'optimizer': 'adam',
     'learning_rate': 1e-3,
     'batch_size': 4,
+    'instance_weight': 1,
+    'sem_weight': 1,
+    'itm_weight': 1,
     'max_lengths': {
         'ingredient_tokens': max_length_ing,
         'instruction_tokens': max_length_inst,
