@@ -33,7 +33,7 @@ class Image2Recipe(nn.Module):
         
         # Return logits and normalized embeddings for similarity
         return {
-            "mmr_logits": output_logits,
+            "mmr_logits": mmr_logits,
             "image_logits": image_logits,
             "image_embeddings": image_embeddings_proj,
             "recipe_embeddings": recipe_embeddings_proj
