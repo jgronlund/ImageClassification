@@ -31,7 +31,7 @@ import random
 #     - Multimodal transformer decoder (MTD)
 
 class MMR_losses(nn.Module):
-    def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0):
+    def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=0.1, itm_weight=1.0):
         super().__init__()
         self.margin = margin
         self.instance_weight = instance_weight
