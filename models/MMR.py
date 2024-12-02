@@ -110,7 +110,7 @@ class MMR_losses(nn.Module):
         
             return (torch.nn.functional.relu(hardest_img_positive + margin - hardest_img_negative)).mean() + (torch.nn.functional.relu(hardest_txt_positive + margin - hardest_txt_negative)).mean()
 
-    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, margin=1.0):
+    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, tf_labels=torch.ones(img_embeddings.size()[0]), margin=self.margin):
         sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='semantic')
         inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='instance')
         itm_loss = self.itm_loss(mmr_logits, labels)
