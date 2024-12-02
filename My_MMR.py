@@ -108,7 +108,7 @@ class TDB(nn.Module):
         self.heads = heads
 
         # Self attention --> ouput is attn_output, attn_output_weights, so we only care about the first
-        self.self_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=headsi, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=heads, batch_first=True)
         self.norm_sa = nn.LayerNorm(hidden_dim)
         # Cross attention
         self.cross_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=heads, batch_first=True)
@@ -119,12 +119,12 @@ class TDB(nn.Module):
         self.norm_ff = nn.LayerNorm(hidden_dim)
 
     def forward(self, tgt, src):
-    '''
-    Self attention,
-    cross attention, 
-    feed forward and layer normalization layers with
-    residual connections, which are repeated N times!
-    '''
+        '''
+        Self attention,
+        cross attention, 
+        feed forward and layer normalization layers with
+        residual connections, which are repeated N times!
+        '''
         # Input: query, key, value
         tgt = self.self_attn(tgt, tgt, tgt)[0]
         tgt = self.norm_sa(tgt)
