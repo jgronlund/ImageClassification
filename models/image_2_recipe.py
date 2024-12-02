@@ -8,7 +8,7 @@ class Image2Recipe(nn.Module):
         
         self.image_encoder = image_encoder
         self.recipe_encoder = recipe_encoder
-        self.mmr = mmr
+        self.mmr = MMR
         
         # Projection layers to map both modalities to a shared embedding space
         self.image_projection = nn.Linear(image_encoder.image_embedding_dim, projection_dim)
