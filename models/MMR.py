@@ -98,8 +98,6 @@ class MMR_losses(nn.Module):
             img_embeddings = torch.nn.functional.normalize(img_embeddings, p=2, dim=-1)
             img_distances = self.fast_distance(img_embeddings, img_embeddings)
             
-            print(f'txt dist: {txt_distances.shape}')
-            print(f'posi mask: {positives_mask.shape}')
             positive_txt_distances = txt_distances * positives_mask.float()
             negative_txt_distances = txt_distances * negatives_mask.float()
             hardest_txt_positive, _ = positive_txt_distances.max(dim=1)
@@ -144,14 +142,10 @@ class TDB(nn.Module):
         residual connections, which are repeated N times!
         '''
         # Input: query, key, valuei, outputs attn_output, attn_output_weights
-        print("self_attn")
-        print(f"Query shape: {tgt.shape}, Key shape: {tgt.shape}, Value shape: {tgt.shape}")
         tgt = self.self_attn(tgt, tgt, tgt)[0]
         tgt = self.norm_sa(tgt)
 
         # We don't differentiate between key and value per the paper
-        print("cross_attn")
-        print(f"Query shape: {tgt.shape}, Key shape: {src.shape}, Value shape: {src.shape}")
         tgt = self.cross_attn(tgt, src, src)[0]
         tgt = self.norm_ca(tgt)
 
@@ -204,29 +198,17 @@ class MMR(nn.Module):
         # enhanced_image_tokens = self.ITEM(tgt=enhanced_image_tokens, memory=recipe_focus).transpose(0, 1)
         enhanced_image_tokens = image_tokens  
         for im_layer in self.ITEM:
-            print("self_attn")
-            print(f"Query shape: {enhanced_image_tokens.shape}, Key shape: {enhanced_image_tokens.shape}, Value shape: {enhanced_image_tokens.shape}")
-            print("cross_attn")
-            print(f"Query shape: {enhanced_image_tokens.shape}, Key shape: {recipe_tokens.shape}, Value shape: {recipe_tokens.shape}")
             enhanced_image_tokens = im_layer(enhanced_image_tokens, recipe_tokens)
 
         # MTD: The recipe tokens are fed to MTD as Q and the enhanced image tokens as K and V. Then the modalities are fused
         enhanced_recipe_tokens = recipe_tokens
         for re_layer in self.MTD:
-            print("self_attn")
-            print(f"Query shape: {enhanced_image_tokens.shape}, Key shape: {enhanced_image_tokens.shape}, Value shape: {enhanced_image_tokens.shape}")
-            print("cross_attn")
-            print(f"Query shape: {enhanced_image_tokens.shape}, Key shape: {enhanced_recipe_tokens.shape}, Value shape: {enhanced_recipe_tokens.shape}")
             enhanced_recipe_tokens = re_layer(enhanced_recipe_tokens, enhanced_image_tokens)
 
-        print(enhanced_recipe_tokens.shape)
 
         # Project the two embeddings into space for ITM loss
         recipe_projection = self.recipe_proj(enhanced_recipe_tokens) #.transpose(0, 1)) #[:, 0, :]) 
         image_projection = self.image_proj(enhanced_image_tokens) # .transpose(0, 1)) #[:, 0, :]) 
-        print('post projection')
-        print(f'recipe: {recipe_projection.shape}')
-        print(f'image: {image_projection.shape}')
 
         # concat_projections = torch.cat((recipe_projection, image_projection), dim=1)
 	# concat_projections = torch.sum(
