@@ -29,11 +29,11 @@ class Image2Recipe(nn.Module):
         image_embeddings_proj = self.normalize(image_embeddings_proj, p=2, dim=-1)
         recipe_embeddings_proj = self.normalize(recipe_embeddings_proj, p=2, dim=-1)
 
-        output_logits = self.mmr(recipe_embeddings_proj, image_embeddings_proj)
+        mmr_logits = self.mmr(recipe_embeddings_proj, image_embeddings_proj)
         
         # Return logits and normalized embeddings for similarity
         return {
-            "output_logits": output_logits,
+            "mmr_logits": output_logits,
             "image_logits": image_logits,
             "image_embeddings": image_embeddings_proj,
             "recipe_embeddings": recipe_embeddings_proj
