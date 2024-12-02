@@ -33,6 +33,7 @@ import random
 class MMR_losses(nn.Module):
     def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0):
         super().__init__()
+        self.margin = margin
         self.instance_weight = instance_weight
         self.sem_weight = sem_weight
         self.itm_weight = itm_weight
@@ -67,7 +68,7 @@ class MMR_losses(nn.Module):
     # Measures similarity between an anchor and its directly associated positive while ensuring dissimilarity from negatives in the same batch.
     # "The semantic loss Lsem is the same as the instance loss except for the selection of positive and negative samples"
     # Encourages embeddings to reflect class-level semantics, ensuring that embeddings from the same class are closer, even if they are not direct pairs.
-    def instance_semantic_loss(self, img_embeddings, txt_embeddings, labels, margin=1.0, mode='instance'):
+    def instance_semantic_loss(self, img_embeddings, txt_embeddings, labels, mode='instance'):
         '''
         mode is instance or semantic,
         image embadggings of shape batch, hidden
@@ -108,13 +109,13 @@ class MMR_losses(nn.Module):
             hardest_img_positive, _ = positive_img_distances.max(dim=1)
             hardest_img_negative, _ = negative_img_distances.min(dim=1)
         
-            return (torch.nn.functional.relu(hardest_img_positive + margin - hardest_img_negative)).mean() + (torch.nn.functional.relu(hardest_txt_positive + margin - hardest_txt_negative)).mean()
+            return (torch.nn.functional.relu(hardest_img_positive + self.margin - hardest_img_negative)).mean() + (torch.nn.functional.relu(hardest_txt_positive + self.margin - hardest_txt_negative)).mean()
 
-    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, tf_labels='base', margin=self.margin):
+    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, tf_labels='base'):
         if tf_labels == 'base':
            tf_labels = torch.ones(img_embeddings.size()[0])
-        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='semantic')
-        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='instance')
+        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, self.margin, mode='semantic')
+        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, self.margin, mode='instance')
         itm_loss = self.itm_loss(mmr_logits, tf_labels)
 # def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0)
         return (self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)
