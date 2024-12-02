@@ -101,6 +101,44 @@ class MMR_losses(nn.Module):
         itm_loss = itm_loss(mmr_logits, labels)
         return (sem_weight * sem_loss) + (instance_weight * inst_loss) + (itm_weight * itm_loss)
 
+class TDB(nn.Module):
+    def __init__(self, hidden_dim, heads, hidden_factor=4):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.heads = heads
+
+        # Self attention --> ouput is attn_output, attn_output_weights, so we only care about the first
+        self.self_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=headsi, batch_first=True)
+        self.norm_sa = nn.LayerNorm(hidden_dim)
+        # Cross attention
+        self.cross_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=heads, batch_first=True)
+        self.norm_ca = nn.LayerNorm(hidden_dim)
+
+        # Feed forward layers --> expand and compress to keep shape --> Sequential to only call one thing... ReLU for nonlinearity but they use sigmoid
+        self.feed_forward = nn.Sequential(nn.Linear(hidden_dim, hidden_dim * hidden_factor), nn.ReLU(), nn.Linear(hidden_dim * hidden_factor, hidden_dim))
+        self.norm_ff = nn.LayerNorm(hidden_dim)
+
+    def forward(self, tgt, src):
+    '''
+    Self attention,
+    cross attention, 
+    feed forward and layer normalization layers with
+    residual connections, which are repeated N times!
+    '''
+        # Input: query, key, value
+        tgt = self.self_attn(tgt, tgt, tgt)[0]
+        tgt = self.norm_sa(tgt)
+
+        # We don't differentiate between key and value per the paper
+        tgt = self.cross_attn(tgt, src, src)[0]
+        tgt = self.norm_ca(tgt)
+
+        tgt = self.feed_forward(tgt)
+        tgt = self.norm_ff(tgt)
+
+        return tgt
+
+
 class MMR(nn.Module):
     def __init__(self, hidden_dim=512, num_heads=4, ITEM_lyrs=1, MTD_lyrs=4, projection_dim=512):
         super().__init__()
@@ -123,9 +161,9 @@ class MMR(nn.Module):
         # easier one! Image Tokens Enhancement Module (ITEM) to enhance the image tokens 
         # CITATION: https://pytorch.org/docs/stable/generated/torch.nn.TransformerDecoderLayer.html 
         # self.ITEM = nn.ModuleList([TDB(self.hidden_dim, self.num_heads) for _ in range(self.ITEM_lyrs)])
-        self.ITEM = nn.ModuleList([self.TDB_init(self.hidden_dim, self.num_heads) for _ in range(self.ITEM_lyrs)])
+        self.ITEM = nn.ModuleList([TDB(self.hidden_dim, self.num_heads) for _ in range(self.ITEM_lyrs)])
         # Multimodal transformer decoder (MTD) --> using tdb implentation
-        self.MTD = nn.ModuleList([self.TDB_init(self.hidden_dim, self.num_heads) for _ in range(self.MTD_lyrs)])
+        self.MTD = nn.ModuleList([TDB(self.hidden_dim, self.num_heads) for _ in range(self.MTD_lyrs)])
 
         # Project: - Replace simple projection layer is added on top of the feature representation that computes the contrastive loss with a more complicated multimodal
         # module, and the contrastive loss is replaced by ITM. Each must be projected separately!
@@ -134,43 +172,7 @@ class MMR(nn.Module):
         
         # the second part!! matching section --> IT FOLLOWS the other section, so it should be sequential!
         self.match_score = nn.Sequential(nn.Linear(projection_dim, 1), nn.Sigmoid())
-
-    def TDB_init(self, hidden_dim, heads, hidden_factor=4):
-        self.hidden_dim = hidden_dim
-        self.heads = heads
-
-        # Self attention --> ouput is attn_output, attn_output_weights, so we only care about the first
-        self.self_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=headsi, batch_first=True)
-        self.norm_sa = nn.LayerNorm(hidden_dim)
-        # Cross attention
-        self.cross_attn = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=heads, batch_first=True)
-        self.norm_ca = nn.LayerNorm(hidden_dim)
-
-        # Feed forward layers --> expand and compress to keep shape --> Sequential to only call one thing... ReLU for nonlinearity but they use sigmoid
-        self.feed_forward = nn.Sequential(nn.Linear(hidden_dim, hidden_dim * hidden_factor), nn.ReLU(), nn.Linear(hidden_dim * hidden_factor, hidden_dim))
-        self.norm_ff = nn.LayerNorm(hidden_dim)
-
-    def TDB_forward(self, tgt, src):
-    '''
-    Self attention,
-    cross attention, 
-    feed forward and layer normalization layers with
-    residual connections, which are repeated N times!
-    '''
-        # Input: query, key, value
-        tgt = self.self_attn(tgt, tgt, tgt)[0]
-        tgt = self.norm_sa(tgt)
-
-        # We don't differentiate between key and value per the paper
-        tgt = self.cross_attn(tgt, src, src)[0]
-        tgt = self.norm_ca(tgt)
-
-        tgt = self.feed_forward(tgt)
-        tgt = self.norm_ff(tgt)
-
-        return tgt
-
-
+        
     def forward(self, recipe_tokens, image_tokens):
 
         # ITEM: Enhance image tokens by focusing on recipe tokens
@@ -179,12 +181,12 @@ class MMR(nn.Module):
         # enhanced_image_tokens = self.ITEM(tgt=enhanced_image_tokens, memory=recipe_focus).transpose(0, 1)
         enhanced_image_tokens = image_tokens  
         for im_layer in self.ITEM:
-            enhanced_image_tokens = TDB_forward(enhanced_image_tokens, recipe_tokens)
+            enhanced_image_tokens = im_layer(enhanced_image_tokens, recipe_tokens)
 
         # MTD: The recipe tokens are fed to MTD as Q and the enhanced image tokens as K and V. Then the modalities are fused
         enhanced_recipe_tokens = recipe_tokens.transpose(0, 1)
         for re_layer in self.MTD:
-            enhanced_recipe_tokens = TDB_forward(enhanced_recipe_tokens, enhanced_image_tokens)
+            enhanced_recipe_tokens = re_layer(enhanced_recipe_tokens, enhanced_image_tokens)
 
         # Project the two embeddings into space for ITM loss
         recipe_projection = self.recipe_proj(enhanced_recipe_tokens.transpose(0, 1)[:, 0, :]) 
