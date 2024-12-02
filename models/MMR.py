@@ -31,35 +31,75 @@ import random
 #     - Multimodal transformer decoder (MTD)
 
 class MMR_losses(nn.Module):
-    def __init__(self, triplet_weight=0.0, match_weight=1.0, sem_weight=0.0):
+    def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0):
         super().__init__()
         self.triplet_weight = triplet_weight
         self.match_weight = match_weight
         self.sem_weight = sem_weight
         self.itm_loss = nn.BCELoss()  # CITATION: https://github.com/mshukor/TFood/blob/main/bootstrap.pytorch/bootstrap/templates/default/project/models/criterions/criterion.py
 
-    def itm_loss(self, alignment_score, labels):
+    def fast_distance(A,B):
+        # SOURCE: COPIED FROM https://github.com/mshukor/TFood/
+        # A and B must have norm 1 for this to work for the ranking
+        A = torch.nn.functional.normalize(A, p=2, dim=-1)
+        B = torch.nn.functional.normalize(B, p=2, dim=-1)
+        return torch.mm(A,B.t()) * -1
+    
+    def itm_loss(self, mmr_out, labels):
         # Litm = −EtR,tI∼D[y log(s(tR, tI ))+ (1 − y) log(1 − s(tR, tI ))] --> it is just the BCE loss
-        return self.itm_loss(alignment_score, labels)
-
-    def triplet_loss(self, img_anc, positive, negative):
-        # l(xa, xp, xn, α)=[d(xa, xp (positive)) + α − d(xa, xn (negative))]+
-        d_ap = torch.norm(img_anc - positive, p=2, dim=-1)
-        d_an = torch.norm(img_anc - negative, p=2, dim=-1)
-        return torch.relu(d_ap + self.margin - d_an).mean()
-
+        return self.itm_loss(mmr_out, labels)
+        
+    # Measures similarity between an anchor and its directly associated positive while ensuring dissimilarity from negatives in the same batch.
     # "The semantic loss Lsem is the same as the instance loss except for the selection of positive and negative samples"
-    def sem_loss(self, img_anc, positive, negative):
+    # Encourages embeddings to reflect class-level semantics, ensuring that embeddings from the same class are closer, even if they are not direct pairs.
+    def instance_semantic_loss(self, img_embeddings, txt_embeddings, labels, margin=1.0, mode='instance'):
+        '''
+        mode is instance or semantic,
+        image embadggings of shape batch, hidden
+        text embeddings of size batch, hidden, 
+        labels of size batch, 1
+        '''
         # l(xa, xp, xn, α)=[d(xa, xp (positive)) + α − d(xa, xn (negative))]+
-        d_ap = torch.norm(img_anc - positive, p=2, dim=-1)
-        d_an = torch.norm(img_anc - negative, p=2, dim=-1)
-        return torch.relu(d_ap + self.margin - d_an).mean()
+        batch_size = distances.size()[0]
+        
+        if mode == 'instance':
+            # Here we need to check that the images are getting the right text and vice versa
+            distances = self.fast_distance(image_embeds, text_embeds)
+            positives = torch.arange(batch_size, device=image_embeds.device)
+            loss_im_txt = F.cross_entropy(-distances, positives)
+            loss_txt_im = F.cross_entropy(-distances.T, positives)
+            
+            return (loss_im_txt + loss_txt_im).mean()
+            
+        if mode == 'semantic':
+            # Get the same class/value
+            labels = labels.unsqueeze(1)
+            positives_mask = (labels == labels.T) 
+            negatives_mask = ~positives_mask
+    
+            txt_embeddings = torch.nn.functional.normalize(txt_embeddings, p=2, dim=-1)
+            txt_distances = fast_distance(txt_embeddings, txt_embeddings)
 
-    def total_loss(self, itm_score, labels, img_anc, positive, negative):
-        # L = Litc + λsemLsem + λitmLitm -->  
-        loss_itm = self.itm_loss(itm_score, labels)
-        loss_triplet = self.triplet_loss(img_anc, positive, negative)
-        return self.triplet_weight * loss_triplet + self.match_weight * loss_itm + self.sem_weight * loss_sem
+            img_embeddings = torch.nn.functional.normalize(img_embeddings, p=2, dim=-1)
+            img_distances = fast_distance(img_embeddings, img_embeddings)
+            
+            positive_txt_distances = text_distances * positives_mask.float()
+            negative_txt_distances = text_distances * negatives_mask.float()
+            hardest_txt_positive, _ = positive_txt_distances.max(dim=1)
+            hardest_txt_negative, _ = negative_txt_distances.min(dim=1)
+
+            positive_img_distances = img_distances * positives_mask.float()
+            negative_img_distances = img_distances * negatives_mask.float()
+            hardest_img_positive, _ = positive_img_distances.max(dim=1)
+            hardest_img_negative, _ = negative_img_distances.min(dim=1)
+        
+            return (torch.nn.functional.relu(hardest_img_positive + margin - hardest_negative)).mean()
+
+    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0):
+        sem_loss = instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='semantic')
+        inst_loss = instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='instance')
+        itm_loss = itm_loss(mmr_logits, labels)
+        return (sem_weight * sem_loss) + (instance_weight * inst_loss) + (itm_weight * itm_loss)
 
 class TDB(nn.Module):
     '''
@@ -119,7 +159,8 @@ class MMR(nn.Module):
 
         # easier one! Image Tokens Enhancement Module (ITEM) to enhance the image tokens 
         # CITATION: https://pytorch.org/docs/stable/generated/torch.nn.TransformerDecoderLayer.html 
-        self.ITEM = nn.TransformerDecoder(nn.TransformerDecoderLayer(self.hidden_dim, self.num_heads, batch_first=True), num_layers=self.ITEM_lyrs)
+        # self.ITEM = nn.ModuleList([TDB(self.hidden_dim, self.num_heads) for _ in range(self.ITEM_lyrs)])
+        self.ITEM = nn.ModuleList([TDB(self.hidden_dim, self.num_heads) for _ in range(self.ITEM_lyrs)])
         # Multimodal transformer decoder (MTD) --> using tdb implentation
         self.MTD = nn.ModuleList([TDB(self.hidden_dim, self.num_heads) for _ in range(self.MTD_lyrs)])
 
@@ -136,15 +177,18 @@ class MMR(nn.Module):
         # ITEM: Enhance image tokens by focusing on recipe tokens
         enhanced_image_tokens = image_tokens.transpose(0, 1)
         recipe_focus = recipe_tokens.transpose(0, 1)
-        enhanced_image_tokens = self.ITEM(tgt=enhanced_image_tokens, memory=recipe_focus).transpose(0, 1)
+        # enhanced_image_tokens = self.ITEM(tgt=enhanced_image_tokens, memory=recipe_focus).transpose(0, 1)
+        enhanced_image_tokens = image_tokens  
+        for im_layer in self.ITEM:
+            enhanced_image_tokens = im_layer(enhanced_image_tokens, recipe_tokens)
 
         # MTD: The recipe tokens are fed to MTD as Q and the enhanced image tokens as K and V. Then the modalities are fused
-        fused_tokens = recipe_tokens.transpose(0, 1)
-        for layer in self.MTD_layers:
-            fused_tokens = layer(fused_tokens, enhanced_image_tokens)
+        enhanced_recipe_tokens = recipe_tokens.transpose(0, 1)
+        for re_layer in self.MTD:
+            enhanced_recipe_tokens = re_layer(enhanced_recipe_tokens, enhanced_image_tokens)
 
         # Project the two embeddings into space for ITM loss
-        recipe_projection = self.recipe_proj(fused_tokens.transpose(0, 1)[:, 0, :]) 
+        recipe_projection = self.recipe_proj(enhanced_recipe_tokens.transpose(0, 1)[:, 0, :]) 
         image_projection = self.image_proj(enhanced_image_tokens.transpose(0, 1)[:, 0, :]) 
         concat_projections = torch.cat(recipe_projection, image_projection)
         
@@ -153,13 +197,6 @@ class MMR(nn.Module):
 
         return logits
         
-    def compute_loss(self, tgt_labels, logits, loss_type='ITM', triplet_weight=0.0, match_weight=1.0, sem_weight=0.0):
-        """
-        Calculate the losses--> input target and the logits from the forward pass
-        """
-        # if loss_type == 'ITM':
-        itm_loss = MMR_losses.itm_loss(torch.sigmoid(logits), tgt_labels.float())
-        return itm_loss
 
     def seed_torch(seed=0):
         random.seed(seed)
