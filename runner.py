@@ -154,7 +154,8 @@ class Runner(object):
                     else: ##Eval mode
                         with torch.no_grad():
                             output = self.model(images, image_labels, recipe_enc_src)
-                            loss = None ##TODO: Complete how we will calculate the loss with these outputted encodings
+                            loss = loss_calcs.total_eval_loss(labels, image_logits, recipe_logits)
+                            #None ##TODO: Complete how we will calculate the loss with these outputted encodings
                             
                             ##Example solution, but I think the paper does it differently:
                             # contrastive = contrastive_loss(image_features, text_features) + \
