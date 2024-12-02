@@ -148,6 +148,7 @@ class Runner(object):
                         # Do we want to add classification to the loss?
                         # Using baseline all image-recipe pairs match btw.. maybe dont wat to do that?
                         loss = loss_calcs.total_loss(labels, image_logits, recipe_logits, mmr_logits)
+                        self.train_loss_list.append(loss)
                         loss.backward()
                         self.optimizer.step()
                     
@@ -155,6 +156,7 @@ class Runner(object):
                         with torch.no_grad():
                             output = self.model(images, image_labels, recipe_enc_src)
                             loss = loss_calcs.total_eval_loss(labels, image_logits, recipe_logits)
+                            self.eval_loss_list.append(loss)
                             #None ##TODO: Complete how we will calculate the loss with these outputted encodings
                             
                             ##Example solution, but I think the paper does it differently:
