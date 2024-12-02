@@ -113,7 +113,7 @@ class MMR_losses(nn.Module):
     def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, tf_labels=torch.ones(img_embeddings.size()[0]), margin=self.margin):
         sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='semantic')
         inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin, mode='instance')
-        itm_loss = self.itm_loss(mmr_logits, labels)
+        itm_loss = self.itm_loss(mmr_logits, tf_labels)
 # def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0)
         return (self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)
 
