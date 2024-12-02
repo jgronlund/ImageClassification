@@ -4,6 +4,7 @@ from models.image_2_recipe import Image2Recipe
 from models.image_encoder import Image_Encoder
 from models.recipe_encoder import RecipeEncoder
 from models.MMR import MMR
+from models.MMR import MMR_losses
 import matplotlib.pyplot as plt
 
 class Data_Loading(Dataset):
@@ -57,13 +58,18 @@ class Runner(object):
         self.clip_model = kwargs['clip_model']
         self.vocab_size = kwargs['vocab_size']
         self.max_len = kwargs['max_len']
+        self.instance_weight = kwargs['instance_weight']
+        self.sem_weight = kwargs['sem_weight']
+        self.itm_weight = kwargs['itm_weight']
+        # Pending variable margin calc 
+        self.loss_calcs = MMR_losses(margin=1.0, instance_weight=self.instance_weight, sem_weight=self.sem_weight, itm_weight=self.itm_weight)
         num_classes = len(self.image_labels)
 
         
         self.image_encoder = Image_Encoder(self.device, self.clip_model, num_classes).to(self.device)
         self.recipe_encoder = RecipeEncoder(self.device, self.vocab_size, self.max_len).to(self.device)
-        self.mmr = MMR(input_size=self.image_encoder.clip_model.config.projection_dim, device=self.device)
-        # num_heads=num_heads, ITEM_lyrs=ITEM_lyrs, MTD_lyrs=MTD_lyrs, projection_dim=projection_dim
+        self.mmr = MMR(input_size=self.image_encoder.clip_model.config.projection_dim).to(self.device)
+        # MMR varaibles: num_heads=num_heads, ITEM_lyrs=ITEM_lyrs, MTD_lyrs=MTD_lyrs, projection_dim=projection_dim
         self.model = Image2Recipe(self.image_encoder, self.recipe_encoder, self.mmr).to(self.device)
 
 
@@ -133,7 +139,14 @@ class Runner(object):
                     if phase == 'train':
                         output = self.model(images, image_labels, recipe_enc_src)
                         ##Combine the Recipe Encoder Losses and Image Encoder Losses based on TFOOD
-                        loss = None ## Do the compute losss from MMR.losses
+                        mmr_logits = output["mmr_logits"]
+                        image_logits = output["image_logits"]
+                        image_embeddings_proj = output["image_embeddings"]
+                        recipe_embeddings_proj = output["recipe_embeddings"]
+
+                        # I am assuming that the image and recipe logits give you a classification score that correspond to the label? 
+                        # Do we want to add classification to the loss?
+                        loss_calcs =  loss.total_loss(labels, image_tokens, recipe_tokens, logits)
                         loss.backward()
                         self.optimizer.step()
                     
