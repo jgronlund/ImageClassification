@@ -119,7 +119,7 @@ class MMR_losses(nn.Module):
         itm_loss = self.itm_loss(mmr_logits, tf_labels)
         return (self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)
 
-    def total_eval_loss(self, labels, img_embeddings, txt_embeddings, tf_labels='base'):
+    def total_eval_loss(self, labels, img_embeddings, txt_embeddings):
         sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='semantic')
         inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='instance')
         # Potentially adda classification loss
