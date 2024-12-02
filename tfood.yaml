@@ -1,4 +1,4 @@
-name: tfood_env
+name: tfood_torch2.2
 channels:
   - pytorch
   - anaconda
@@ -6,16 +6,22 @@ channels:
   - defaults
   - nvidia
 dependencies:
-  - matplotlib
+  - python
   - pandas
   - pip
-  - python=3.9
+  - numpy
   - pytorch
+  - pytorch-cuda=12.1
   - torchvision
   - torchaudio
-  - pytorch-cuda=12.4
-  - pip:
-    - lmdb==1.2.1
-    - ipykernel
-    - pillow
-    - transformers==4.46.2
+  - torchtext
+  - matplotlib
+  - transformers
+  - pillow
+  - ipykernel
+  - python-lmdb
+  # - pip:
+  #   - lmdb==1.2.1
+    # - ipykernel
+    # - pillow
+    # - transformers==4.46.2
