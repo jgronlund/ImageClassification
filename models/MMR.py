@@ -117,8 +117,15 @@ class MMR_losses(nn.Module):
         sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='semantic')
         inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='instance')
         itm_loss = self.itm_loss(mmr_logits, tf_labels)
-# def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=1.0, itm_weight=1.0)
         return (self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)
+
+    def total_eval_loss(self, labels, img_embeddings, txt_embeddings, tf_labels='base'):
+        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='semantic')
+        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='instance')
+        # Potentially adda classification loss
+        return (self.sem_weight * sem_loss) + (self.instance_weight * inst_loss)  
+
+
 
 class TDB(nn.Module):
     def __init__(self, hidden_dim, heads, hidden_factor=4):

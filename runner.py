@@ -147,7 +147,7 @@ class Runner(object):
                         # I am assuming that the image and recipe logits give you a classification score that correspond to the label? 
                         # Do we want to add classification to the loss?
                         # Using baseline all image-recipe pairs match btw.. maybe dont wat to do that?
-                        loss =  loss_calcs.total_loss(labels, image_logits, recipe_logits, mmr_logits)
+                        loss = loss_calcs.total_loss(labels, image_logits, recipe_logits, mmr_logits)
                         loss.backward()
                         self.optimizer.step()
                     
