@@ -59,7 +59,7 @@ class RecipeEncoder(nn.Module):
             ttl_1 = torch.squeeze(title_array)
         else:
             ttl_1 = title_array
-        ttl_2 = title_encoder.forward(ttl_1)
+        ttl_2 = title_encoder.forward(ttl_1.long())
 
         ## Ingredients processing
         # Run each line thru first encoder and avg the output
@@ -70,7 +70,7 @@ class RecipeEncoder(nn.Module):
             ingr_T_encoder = TransformerEncoder(self.vocab_size, self.device, 
                                                 max_length=self.max_len,
                                                 output_size=self.output_size)
-            ing_1_all[:,i,:] = ingr_T_encoder.forward(ing).mean(dim=2)
+            ing_1_all[:,i,:] = ingr_T_encoder.forward(ing.long()).mean(dim=2)
 
         ing_1 = ing_1_all.mean(dim=1).long()
 
@@ -89,7 +89,7 @@ class RecipeEncoder(nn.Module):
             instr_T_encoder = TransformerEncoder(self.vocab_size, self.device,
                                                 max_length=self.max_len,
                                                 output_size=self.output_size)
-            ins_1_all[:,i,:] = instr_T_encoder.forward(ins).mean(dim=2)
+            ins_1_all[:,i,:] = instr_T_encoder.forward(ins.long()).mean(dim=2)
 
         ins_1 = ins_1_all.mean(dim=1).long()
 
