@@ -61,7 +61,7 @@ class MMR_losses(nn.Module):
             return torch.mm(A_flat, B_flat.t()) * -1
 
 
-    def itm_loss_from_logits(similarity_matrix):
+    def itm_loss_from_logits(self, similarity_matrix):
         """
         Compute Image-Text Matching (ITM) Loss using a precomputed similarity matrix.
         Args:

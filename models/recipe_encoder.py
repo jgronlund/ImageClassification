@@ -28,6 +28,9 @@ class RecipeEncoder(nn.Module):
         self.output_size = output_size
         self.device = device
         self.max_len = max_len
+        self.shared_encoder = TransformerEncoder(self.vocab_size, self.device, 
+                                           max_length=self.max_len,
+                                           output_size=self.output_size)
 
         # Initialize final layers
         # self.ll_t = nn.Linear(self.hidden_dim*3, self.output_size, device=self.device)
@@ -52,14 +55,12 @@ class RecipeEncoder(nn.Module):
         #### Encoders ####
         ## Title processing
         # Run through 1 encoder
-        title_encoder = TransformerEncoder(self.vocab_size, self.device, 
-                                           max_length=self.max_len,
-                                           output_size=self.output_size)
+        
         if len(title_array.shape)==3:
             ttl_1 = torch.squeeze(title_array)
         else:
             ttl_1 = title_array
-        ttl_2 = title_encoder.forward(ttl_1)
+        ttl_2 = self.shared_encoder.forward(ttl_1.long())
 
         ## Ingredients processing
         # Run each line thru first encoder and avg the output
@@ -67,18 +68,18 @@ class RecipeEncoder(nn.Module):
         # An encoder for each line
         for i in range(ingredients_array.shape[1]):
             ing = ingredients_array[:,i,:]
-            ingr_T_encoder = TransformerEncoder(self.vocab_size, self.device, 
-                                                max_length=self.max_len,
-                                                output_size=self.output_size)
-            ing_1_all[:,i,:] = ingr_T_encoder.forward(ing).mean(dim=2)
+            # ingr_T_encoder = TransformerEncoder(self.vocab_size, self.device, 
+            #                                     max_length=self.max_len,
+            #                                     output_size=self.output_size)
+            ing_1_all[:,i,:] = self.shared_encoder.forward(ing.long()).mean(dim=2)
 
         ing_1 = ing_1_all.mean(dim=1).long()
 
         # Run thru second encoder
-        ingr_HT_encoder = TransformerEncoder(self.vocab_size, self.device, 
-                                             max_length=self.max_len,
-                                             output_size=self.output_size)
-        ing_2 = ingr_HT_encoder.forward(ing_1)
+        # ingr_HT_encoder = TransformerEncoder(self.vocab_size, self.device, 
+        #                                      max_length=self.max_len,
+        #                                      output_size=self.output_size)
+        ing_2 = self.shared_encoder.forward(ing_1)
 
         ## Instructions processing
         # Run thru first encoder and avg the output
@@ -86,18 +87,18 @@ class RecipeEncoder(nn.Module):
         # An encoder for each line
         for i in range(instructions_array.shape[1]):
             ins = instructions_array[:,i,:]
-            instr_T_encoder = TransformerEncoder(self.vocab_size, self.device,
-                                                max_length=self.max_len,
-                                                output_size=self.output_size)
-            ins_1_all[:,i,:] = instr_T_encoder.forward(ins).mean(dim=2)
+            # instr_T_encoder = TransformerEncoder(self.vocab_size, self.device,
+            #                                     max_length=self.max_len,
+            #                                     output_size=self.output_size)
+            ins_1_all[:,i,:] = self.shared_encoder.forward(ins.long()).mean(dim=2)
 
         ins_1 = ins_1_all.mean(dim=1).long()
 
         # Run thru second encoder
-        instr_HT_encoder = TransformerEncoder(self.vocab_size, self.device,
-                                              max_length=self.max_len,
-                                              output_size=self.output_size)
-        ins_2 = instr_HT_encoder.forward(ins_1)
+        # instr_HT_encoder = TransformerEncoder(self.vocab_size, self.device,
+        #                                       max_length=self.max_len,
+        #                                       output_size=self.output_size)
+        ins_2 = self.shared_encoder.forward(ins_1)
 
 
         #### Decoders ####
@@ -172,6 +173,7 @@ class TransformerEncoder(nn.Module):
         # Initialize embedding lookup
         self.srcembeddingL = nn.Embedding(input_size, hidden_dim, device=self.device) 
         self.srcposembeddingL = nn.Embedding(max_length, hidden_dim, device=self.device)
+        self.to(self.device)
 
 
     def forward(self, input):
@@ -183,7 +185,7 @@ class TransformerEncoder(nn.Module):
          """
         
         # embed input and tgt for processing by transformer
-        input = input.to(self.device)
+        # input = input.to(self.device)
         src_emb = self.srcembeddingL(input)
         pos_range = torch.arange(0,self.max_length, device=self.device).repeat(input.shape[0],1)
         pos_embed = self.srcposembeddingL(pos_range)
