@@ -32,9 +32,11 @@ import random
 #     - Multimodal transformer decoder (MTD)
 
 class MMR_losses(nn.Module):
-    def __init__(self, margin=1.0, instance_weight=1.0, sem_weight=0.1, itm_weight=1.0):
+    def __init__(self, instance_weight=1.0, sem_weight=0.1, itm_weight=1.0):
         super().__init__()
-        self.margin = margin
+        # self.margin = margin
+        # self.margin_step = margin_step
+        # self.margin_max = margin_max
         self.instance_weight = instance_weight
         self.sem_weight = sem_weight
         self.itm_weight = itm_weight
@@ -98,14 +100,17 @@ class MMR_losses(nn.Module):
         total_loss = positive_loss + negative_loss_img + negative_loss_txt
         return total_loss
     
-    # def itm_loss(self, mmr_out, labels):
-    #     # Litm = −EtR,tI∼D[y log(s(tR, tI ))+ (1 − y) log(1 − s(tR, tI ))] --> it is just the BCE loss
-    #     return self.itm_loss_lyr(mmr_out, labels)
+    def itm_loss(self, mmr_out):
+        # Litm = −EtR,tI∼D[y log(s(tR, tI ))+ (1 − y) log(1 − s(tR, tI ))] --> it is just the BCE loss
+        labels = torch.eye(mmr_out.size()[0], device=mmr_out.device)
+        # print(f'labs {labels.shape}, mmr_sig {torch.sigmoid(mmr_out)}')
+        return self.itm_loss_lyr(torch.sigmoid(mmr_out), labels)
+        #return self.itm_loss_lyr(mmr_out, labels)
         
     # Measures similarity between an anchor and its directly associated positive while ensuring dissimilarity from negatives in the same batch.
     # "The semantic loss Lsem is the same as the instance loss except for the selection of positive and negative samples"
-    # Encourages embeddings to reflect class-level semantics, ensuring that embeddings from the same class are closer, even if they are not direct pairs.
-    def instance_semantic_loss(self, img_embeddings, txt_embeddings, labels, mode='instance'):
+    # Encourages embeddings to reflect class-level s, tf_labels='base'emantics, ensuring that embeddings from the same class are closer, even if they are not direct pairs.
+    def instance_semantic_loss(self, img_embeddings, txt_embeddings, labels, margin=1.0, mode='instance'):
         '''
         mode is instance or semantic,
         image embadggings of shape batch, hidden
@@ -114,47 +119,78 @@ class MMR_losses(nn.Module):
         '''
         # l(xa, xp, xn, α)=[d(xa, xp (positive)) + α − d(xa, xn (negative))]+
         batch_size = img_embeddings.size()[0]
-        
+        sim_img_txt = img_embeddings @ txt_embeddings.T
+        sim_txt_img = sim_img_txt.T
+
         if mode == 'instance':
-            # Here we need to check that the images are getting the right text and vice versa
+            # Here we need to check that the images are getting the right images and text and vice versa
             distances = self.fast_distance(img_embeddings, txt_embeddings)
-            positives = torch.arange(batch_size, device=img_embeddings.device)
-            loss_im_txt = F.cross_entropy(-distances, positives)
-            loss_txt_im = F.cross_entropy(-distances.T, positives)
+            positives = torch.eye(batch_size, device=img_embeddings.device)
+            loss_im_txt = F.cross_entropy(-distances, positives.argmax(dim=1))
+            loss_txt_im = F.cross_entropy(-distances.T, positives.argmax(dim=1))
             
             return (loss_im_txt + loss_txt_im).mean()
             
         if mode == 'semantic':
+            # Here, we focus on having the meaning extracted from the image match the meaning extracted by the text
+            # STep 1 is to calculate the similarity between the two embeddings. 
             # Get the same class/value
-            labels = labels.unsqueeze(1)
-            positives_mask = (labels == labels.T)
-            negatives_mask = ~positives_mask
+            labels = torch.eye(batch_size, device=img_embeddings.device)
+            # print(f'labels: {labels.shape}')
+            # labels = labels.unsqueeze(1)
+            positives_mask = labels
+            negatives_mask = 1 - positives_mask
     
             txt_embeddings = F.normalize(txt_embeddings, p=2, dim=-1)
-            txt_distances = self.fast_distance(txt_embeddings, txt_embeddings)
+            txt_distances  = self.fast_distance(txt_embeddings, txt_embeddings)
 
             img_embeddings = F.normalize(img_embeddings, p=2, dim=-1)
             img_distances = self.fast_distance(img_embeddings, img_embeddings)
+
+            # Not sure if we need to be comparing to itself but we need to compare to eachother
+            img_txt_distances = self.fast_distance(img_embeddings, txt_embeddings)
+            txt_img_distances = img_txt_distances.T
+
+            # print(f'img_txt dist: {img_txt_distances.shape}')
+            # print(f'img_emb dist: {img_embeddings.shape}')
+            # print(f'txt_emb dist: {txt_embeddings.shape}')
             
-            positive_txt_distances = txt_distances * positives_mask.float()
-            negative_txt_distances = txt_distances * negatives_mask.float()
-            hardest_txt_positive, _ = positive_txt_distances.max(dim=1)
-            hardest_txt_negative, _ = negative_txt_distances.min(dim=1)
+            # Get positive and negative matches
+            positive_img_txt_distances = img_txt_distances * positives_mask
+            negative_img_txt_distances = img_txt_distances * negatives_mask 
+            hardest_img_txt_positive = positive_img_txt_distances.max(dim=1)[0]
+            hardest_img_txt_negative = negative_img_txt_distances.min(dim=1)[0]
+            img_txt = torch.nn.functional.relu(hardest_img_txt_positive + margin - hardest_img_txt_negative).mean()
 
-            positive_img_distances = img_distances * positives_mask.float()
-            negative_img_distances = img_distances * negatives_mask.float()
-            hardest_img_positive, _ = positive_img_distances.max(dim=1)
-            hardest_img_negative, _ = negative_img_distances.min(dim=1)
+            positive_txt_img_distances = txt_img_distances * positives_mask.float()
+            negative_txt_img_distances = txt_img_distances * negatives_mask.float() 
+            hardest_txt_img_positive = positive_txt_img_distances.max(dim=1)[0]
+            hardest_txt_img_negative = negative_txt_img_distances.min(dim=1)[0]
+            txt_img = torch.nn.functional.relu(hardest_txt_img_positive + margin - hardest_txt_img_negative).mean()
+
+            # positive_txt_distances = txt_distances * positives_mask.float()
+            # negative_txt_distances = txt_distances * negatives_mask.float()
+            # hardest_txt_positive = positive_txt_distances.max(dim=1)[0]
+            # hardest_txt_negative = negative_txt_distances.min(dim=1)[0]
+            # txt_txt = torch.nn.functional.relu(hardest_txt_positive + self.margin - hardest_txt_negative)).mean())
+
+            # positive_img_distances = img_distances * positives_mask.float()
+            # negative_img_distances = img_distances * negatives_mask.float()
+            # hardest_img_positive = positive_img_distances.max(dim=1)[0]
+            # hardest_img_negative = negative_img_distances.min(dim=1)[0]
+            # img_img = torch.nn.functional.relu(hardest_img_positive + self.margin - hardest_img_negative)).mean() 
         
-            return ((F.relu(hardest_img_positive + self.margin - hardest_img_negative)).mean() 
-                + (F.relu(hardest_txt_positive + self.margin - hardest_txt_negative)).mean())
+            # Push the positives and negatives apart
+            return img_txt + txt_img 
 
-    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, tf_labels='base'):
+    def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, margin=1.0, tf_labels='base'):
         if tf_labels == 'base':
            tf_labels = torch.ones(img_embeddings.size()[0])
-        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='semantic')
-        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='instance')
+        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin=margin, mode='semantic')
+        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin=margin, mode='instance')
+        #itm_loss = self.itm_loss(mmr_logits)
         itm_loss = self.itm_loss_from_logits(mmr_logits)
+        print(f'itm: {itm_loss} sem: {sem_loss} inst: {inst_loss}')
         return (self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)
 
     def total_eval_loss(self, labels, img_embeddings, txt_embeddings):
