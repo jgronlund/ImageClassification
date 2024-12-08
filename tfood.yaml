@@ -1,4 +1,4 @@
-name: tfood_torch2.2
+name: tfood_torch
 channels:
   - pytorch
   - anaconda
@@ -10,17 +10,18 @@ dependencies:
   - pandas
   - pip
   - numpy
-  - pytorch
-  - pytorch-cuda=12.1
+  - pytorch===2.4.0
+  - pytorch-cuda=12.4
   - torchvision
-  - torchaudio
+  - torchaudio==2.4.0
   - torchtext
   - matplotlib
   - transformers
   - pillow
   - ipykernel
   - python-lmdb
-  # - pip:
+  - pip:
+    - ipywidgets
   #   - lmdb==1.2.1
     # - ipykernel
     # - pillow

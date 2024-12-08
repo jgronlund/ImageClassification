@@ -5,4 +5,7 @@ __pycache__
 *.zip
 *.pdf
 archive
+Data
 TFood
+recipe_checkpoint*
+image

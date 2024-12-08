@@ -7,7 +7,7 @@ from torch import nn
 import random
 
 class RecipeEncoder(nn.Module):
-    def __init__(self, device, vocab_size, max_len, output_size=1024, hidden_dim=512 ):
+    def __init__(self, device, vocab_size, max_len, output_size=1024, hidden_dim=512):
         """
         Initialize the recipe encoder
             Args:
