@@ -217,8 +217,8 @@ class MMR_losses(nn.Module):
            tf_labels = torch.ones(img_embeddings.size()[0])
         sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin=margin, mode='semantic', printout=printout)
         inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin=margin, mode='instance')
-        itm_loss = self.itm_loss(mmr_logits)
-        # itm_loss = self.itm_loss_soft(mmr_logits)
+        #itm_loss = self.itm_loss(mmr_logits)
+        itm_loss = self.itm_loss_soft(mmr_logits)
         # print(f'itm: {itm_loss} sem: {sem_loss} inst: {inst_loss}')
         return ((self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)) / sum_weights
 
@@ -303,8 +303,8 @@ class MMR(nn.Module):
 
         # Project: - Replace simple projection layer is added on top of the feature representation that computes the contrastive loss with a more complicated multimodal
         # module, and the contrastive loss is replaced by ITM. Each must be projected separately!
-        self.image_proj = nn.Linear(self.hidden_dim, self.hidden_dim)
-        self.recipe_proj = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.image_proj = nn.Linear(self.hidden_dim, self.projection_dim)
+        self.recipe_proj = nn.Linear(self.hidden_dim, self.projection_dim)
         
         # the second part!! matching section --> IT FOLLOWS the other section, so it should be sequential!
         # self.match_score = nn.Sequential(nn.Linear(self.projection_dim, self.num_classes), nn.Sigmoid())
