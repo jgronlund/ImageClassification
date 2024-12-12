@@ -48,9 +48,15 @@ class MMR_losses(nn.Module):
         
         A = torch.nn.functional.normalize(A, p=2, dim=-1)
         B = torch.nn.functional.normalize(B, p=2, dim=-1)
+        
+        batch_distances = torch.nn.functional.pairwise_distance(A, B)
 
         if A.dim() == 2 and B.dim() == 2:
-            return torch.mm(A, B.t()) * -1
+            distance = torch.mm(A, B.t()) * -1
+            order_of_magnitude = torch.floor(torch.log10(torch.abs(distance)) + 1e-10)
+            scaling_factors = 10 ** order_of_magnitude
+            return torch.sigmoid(distance) * scaling_factors * 10
+            
         elif A.dim() == 3 and B.dim() == 3:
             batch_size_A, na, ms = A.size()
             batch_size_B, nb, mb = B.size()
@@ -60,7 +66,12 @@ class MMR_losses(nn.Module):
             B_flat = B.view(batch_size_B, -1)  # Shape: (batch_size_B, n * m)
 
             # Compute pairwise distances (batch_size_A x batch_size_B)
-            return torch.mm(A_flat, B_flat.t()) * -1
+            # return torch.mm(A_flat, B_flat.t()) * -1
+            # Normalize for ease
+            distance = torch.mm(A_flat, B_flat.t())*-1
+            order_of_magnitude = torch.floor(torch.log10(torch.abs(distance)) + 1e-10)
+            scaling_factors = 10 ** order_of_magnitude
+            return torch.sigmoid(distance) * scaling_factors * 10
 
 
     def itm_loss_from_logits(self, similarity_matrix):
@@ -123,23 +134,31 @@ class MMR_losses(nn.Module):
         sim_txt_img = sim_img_txt.T
 
         if mode == 'instance':
-            # Here we need to check that the images are getting the right images and text and vice versa
+            # Here we need to check that the images are getting the right text  and vice versa
             distances = self.fast_distance(img_embeddings, txt_embeddings)
             positives = torch.eye(batch_size, device=img_embeddings.device)
+            distances_img = self.fast_distance(img_embeddings, img_embeddings)
+            distances_txt = self.fast_distance(txt_embeddings, txt_embeddings)
+
             loss_im_txt = F.cross_entropy(-distances, positives.argmax(dim=1))
             loss_txt_im = F.cross_entropy(-distances.T, positives.argmax(dim=1))
             
-            return (loss_im_txt + loss_txt_im).mean()
+            loss_txt_txt = F.cross_entropy(-distances_txt.T, positives.argmax(dim=1))
+            loss_im_im = F.cross_entropy(-distances_img.T, positives.argmax(dim=1))
+            
+            return (loss_im_txt + loss_txt_im + loss_txt_txt + loss_im_im).mean()
             
         if mode == 'semantic':
             # Here, we focus on having the meaning extracted from the image match the meaning extracted by the text
             # STep 1 is to calculate the similarity between the two embeddings. 
             # Get the same class/value
-            labels = torch.eye(batch_size, device=img_embeddings.device)
+            labels = torch.eye(batch_size, device=img_embeddings.device).detach()
             # print(f'labels: {labels.shape}')
             # labels = labels.unsqueeze(1)
             positives_mask = labels
-            negatives_mask = 1 - positives_mask
+            negatives_mask = (1 - positives_mask).detach()
+            negatives_mask[negatives_mask == 0] = 1e10
+            
     
             txt_embeddings = F.normalize(txt_embeddings, p=2, dim=-1)
             txt_distances  = self.fast_distance(txt_embeddings, txt_embeddings)
@@ -151,37 +170,39 @@ class MMR_losses(nn.Module):
             img_txt_distances = self.fast_distance(img_embeddings, txt_embeddings)
             txt_img_distances = img_txt_distances.T
 
+            
             # print(f'img_txt dist: {img_txt_distances.shape}')
             # print(f'img_emb dist: {img_embeddings.shape}')
             # print(f'txt_emb dist: {txt_embeddings.shape}')
             
             # Get positive and negative matches
+            # print(f"margin: {margin}")
             positive_img_txt_distances = img_txt_distances * positives_mask
             negative_img_txt_distances = img_txt_distances * negatives_mask 
-            hardest_img_txt_positive = positive_img_txt_distances.max(dim=1)[0]
-            hardest_img_txt_negative = negative_img_txt_distances.min(dim=1)[0]
-            img_txt = F.relu(hardest_img_txt_positive + margin - hardest_img_txt_negative).mean()
+            hardest_img_txt_positive = positive_img_txt_distances.max(dim=1)[0].sum()
+            hardest_img_txt_negative = negative_img_txt_distances.min(dim=1)[0].sum()
+            img_txt = F.relu(hardest_img_txt_positive + margin - (10 * hardest_img_txt_negative)).mean()
 
             positive_txt_img_distances = txt_img_distances * positives_mask.float()
             negative_txt_img_distances = txt_img_distances * negatives_mask.float() 
-            hardest_txt_img_positive = positive_txt_img_distances.max(dim=1)[0]
-            hardest_txt_img_negative = negative_txt_img_distances.min(dim=1)[0]
-            txt_img = F.relu(hardest_txt_img_positive + margin - hardest_txt_img_negative).mean()
+            hardest_txt_img_positive = positive_txt_img_distances.max(dim=1)[0].sum()
+            hardest_txt_img_negative = negative_txt_img_distances.min(dim=1)[0].sum()
+            txt_img = F.relu(hardest_txt_img_positive + margin - (10 * hardest_txt_img_negative)).mean()
 
-            # positive_txt_distances = txt_distances * positives_mask.float()
-            # negative_txt_distances = txt_distances * negatives_mask.float()
-            # hardest_txt_positive = positive_txt_distances.max(dim=1)[0]
-            # hardest_txt_negative = negative_txt_distances.min(dim=1)[0]
-            # txt_txt = torch.nn.functional.relu(hardest_txt_positive + self.margin - hardest_txt_negative)).mean())
+            positive_txt_distances = txt_distances * positives_mask.float()
+            negative_txt_distances = txt_distances * negatives_mask.float()
+            hardest_txt_positive = positive_txt_distances.max(dim=1)[0].sum()
+            hardest_txt_negative = negative_txt_distances.min(dim=1)[0].sum()
+            txt_txt = torch.nn.functional.relu(hardest_txt_positive + margin - (10 * hardest_txt_negative)).mean()
 
-            # positive_img_distances = img_distances * positives_mask.float()
-            # negative_img_distances = img_distances * negatives_mask.float()
-            # hardest_img_positive = positive_img_distances.max(dim=1)[0]
-            # hardest_img_negative = negative_img_distances.min(dim=1)[0]
-            # img_img = torch.nn.functional.relu(hardest_img_positive + self.margin - hardest_img_negative)).mean() 
-        
-            # Push the positives and negatives apart
-            return img_txt + txt_img 
+            positive_img_distances = img_distances * positives_mask.float()
+            negative_img_distances = img_distances * negatives_mask.float()
+            hardest_img_positive = positive_img_distances.max(dim=1)[0].sum()
+            hardest_img_negative = negative_img_distances.min(dim=1)[0].sum()
+            img_img = torch.nn.functional.relu(hardest_img_positive + margin - (10 * hardest_img_negative)).mean() 
+
+            # Push the positives and negatives apart txt_img 
+            return img_txt + img_img + txt_txt
 
     def total_loss(self, labels, img_embeddings, txt_embeddings, mmr_logits, margin=1.0, tf_labels='base'):
         sum_weights = self.sem_weight + self.instance_weight + self.itm_weight 
@@ -194,10 +215,10 @@ class MMR_losses(nn.Module):
         # print(f'itm: {itm_loss} sem: {sem_loss} inst: {inst_loss}')
         return ((self.sem_weight * sem_loss) + (self.instance_weight * inst_loss) + (self.itm_weight * itm_loss)) / sum_weights
 
-    def total_eval_loss(self, labels, img_embeddings, txt_embeddings):
+    def total_eval_loss(self, labels, img_embeddings, txt_embeddings, margin=1.0):
         sum_weights = self.sem_weight + self.instance_weight 
-        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='semantic')
-        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, mode='instance')
+        sem_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin=margin, mode='semantic')
+        inst_loss = self.instance_semantic_loss(img_embeddings, txt_embeddings, labels, margin=margin, mode='instance')
         # Potentially adda classification loss
         return ((self.sem_weight * sem_loss) + (self.instance_weight * inst_loss)) / sum_weights
 
@@ -242,12 +263,17 @@ class TDB(nn.Module):
 
 
 class MMR(nn.Module):
-    def __init__(self, hidden_dim=1024, num_heads=4, ITEM_lyrs=4, MTD_lyrs=4, projection_dim=512):
+    def __init__(self, hidden_dim=1024, num_heads=4, ITEM_lyrs=4, MTD_lyrs=4, projection_dim=512, MMR_type="type_separate"):
         super().__init__()
+        '''
+        type_separate will have them feed in steps (n layers of encoder/devcoder, then n layers of 
+        encoder/decoder 2, otherwise each feeds into the other)
+        '''
         self.num_heads = num_heads
         self.hidden_dim = hidden_dim  # MUST be the size of inputs
         self.ITEM_lyrs = ITEM_lyrs
         self.MTD_lyrs = MTD_lyrs
+        self.MMR_type = MMR_type
         #self.num_classes = num_classes
         self.projection_dim = projection_dim
 
@@ -282,14 +308,28 @@ class MMR(nn.Module):
         enhanced_image_tokens = image_tokens.transpose(0, 1)
         recipe_focus = recipe_tokens.transpose(0, 1)
         # enhanced_image_tokens = self.ITEM(tgt=enhanced_image_tokens, memory=recipe_focus).transpose(0, 1)
-        enhanced_image_tokens = image_tokens  
-        for im_layer in self.ITEM:
-            enhanced_image_tokens = im_layer(enhanced_image_tokens, recipe_tokens)
+        
+        if self.MMR_type == "type_separate":
+            enhanced_image_tokens = image_tokens  
+            for im_layer in self.ITEM:
+                enhanced_image_tokens = im_layer(enhanced_image_tokens, recipe_tokens)
 
-        # MTD: The recipe tokens are fed to MTD as Q and the enhanced image tokens as K and V. Then the modalities are fused
-        enhanced_recipe_tokens = recipe_tokens
-        for re_layer in self.MTD:
-            enhanced_recipe_tokens = re_layer(enhanced_recipe_tokens, enhanced_image_tokens)
+            # MTD: The recipe tokens are fed to MTD as Q and the enhanced image tokens as K and V. Then the modalities are fused
+            enhanced_recipe_tokens = recipe_tokens
+            for re_layer in self.MTD:
+                enhanced_recipe_tokens = re_layer(enhanced_recipe_tokens, enhanced_image_tokens)
+        
+        else:   
+            enhanced_image_tokens = image_tokens
+            enhanced_recipe_tokens = recipe_tokens
+            for i in range(len(self.MTD)):
+                im_layer = self.ITEM[i]
+                re_layer = self.MTD[i]
+                enhanced_image_tokens = image_tokens
+                enhanced_image_tokens = im_layer(enhanced_image_tokens, enhanced_recipe_tokens)
+                enhanced_recipe_tokens = recipe_tokens
+                enhanced_recipe_tokens = re_layer(enhanced_recipe_tokens, enhanced_image_tokens)
+            
 
 
         # Project the two embeddings into space for ITM loss
